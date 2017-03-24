@@ -1,4 +1,4 @@
-// Copyright 2016 The Rust Project Developers. See the COPYRIGHT
+// Copyright 2014 The Rust Project Developers. See the COPYRIGHT
 // file at the top-level directory of this distribution and at
 // http://rust-lang.org/COPYRIGHT.
 //
@@ -8,13 +8,12 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![sanitizer_runtime]
-#![feature(sanitizer_runtime)]
-#![feature(alloc_system)]
-#![feature(staged_api)]
-#![no_std]
-#![unstable(feature = "sanitizer_runtime_lib",
-            reason = "internal implementation detail of sanitizers",
-            issue = "0")]
+fn f() -> isize {
+    (return 1, return 2)
+//~^ ERROR mismatched types
+//~| expected type `isize`
+//~| found type `(_, _)`
+//~| expected isize, found tuple
+}
 
-extern crate alloc_system;
+fn main() {}
