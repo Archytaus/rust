@@ -727,10 +727,10 @@ impl<'a, 'tcx> Visitor<'tcx> for Qualifier<'a, 'tcx, 'tcx> {
             }
 
             Rvalue::Discriminant(..) => {
-                // FIXME discriminant
                 self.add(Qualif::NOT_CONST);
+                // FIXME discriminant
                 if self.mode != Mode::Fn {
-                    bug!("implement discriminant const qualify");
+                    // bug!("implement discriminant const qualify");
                 }
             }
 

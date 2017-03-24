@@ -278,9 +278,16 @@ pub fn check_safety_of_destructor_if_necessary<'a, 'gcx, 'tcx>(
     debug!("check_safety_of_destructor_if_necessary typ: {:?} scope: {:?}",
            typ, scope);
 
-    let parent_scope = rcx.tcx.region_maps.opt_encl_scope(scope).unwrap_or_else(|| {
-        span_bug!(span, "no enclosing scope found for scope: {:?}", scope)
-    });
+    // let parent_scope = rcx.tcx.region_maps.opt_encl_scope(scope).unwrap_or_else(|| {
+    //     span_bug!(span, "no enclosing scope found for scope: {:?}", scope)
+    // });
+    // FIXME. Verify and return nothing in this case as the
+    //        error will be reported by the type checker???
+
+    let parent_scope = match rcx.tcx.region_maps.opt_encl_scope(scope) {
+      Some(parent_scope) => parent_scope,
+      None => return // There is no parent scope if this is done as a constant match block.
+    };
 
     let result = iterate_over_potentially_unsafe_regions_in_type(
         &mut DropckContext {
