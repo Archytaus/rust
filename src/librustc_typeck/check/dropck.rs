@@ -278,10 +278,9 @@ pub fn check_safety_of_destructor_if_necessary<'a, 'gcx, 'tcx>(
     debug!("check_safety_of_destructor_if_necessary typ: {:?} scope: {:?}",
            typ, scope);
 
-    let parent_scope = match rcx.tcx.region_maps.opt_encl_scope(scope) {
-      Some(parent_scope) => parent_scope,
-      None => region::ROOT_CODE_EXTENT // No enclosing scope found then it must be the root scope
-    };
+    let parent_scope = rcx.tcx.region_maps.opt_encl_scope(scope)
+                          // No enclosing scope found then it must be the root scope
+                          .unwrap_or(region::ROOT_CODE_EXTENT);
 
     let result = iterate_over_potentially_unsafe_regions_in_type(
         &mut DropckContext {

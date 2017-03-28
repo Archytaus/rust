@@ -8,19 +8,13 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-const w: bool = { match Some(true) { _ => true } };
-                  //~^ ERROR: blocks in constants are limited to items and tail expressions [E0016]
-
-const x: bool = match Some(true) { _ => true };
-                //~^ ERROR: blocks in constants are limited to items and tail expressions [E0016]
-
-const y: bool = match Some(true) {
+const x: bool = match Some(true) {
     Some(value) => true,
     //~^ ERROR: constant contains unimplemented expression type [E0019]
     _ => false
 };
 
-const z: bool = {
+const y: bool = {
     match Some(true) {
         Some(value) => true,
         //~^ ERROR: constant contains unimplemented expression type [E0019]
