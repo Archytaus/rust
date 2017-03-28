@@ -17,11 +17,11 @@ pub use self::fold::TypeFoldable;
 
 use dep_graph::{self, DepNode};
 use hir::{map as hir_map, FreevarMap, TraitMap};
-use middle;
 use hir::def::{Def, CtorKind, ExportMap};
 use hir::def_id::{CrateNum, DefId, DefIndex, CRATE_DEF_INDEX, LOCAL_CRATE};
 use middle::const_val::ConstVal;
 use middle::lang_items::{FnTraitLangItem, FnMutTraitLangItem, FnOnceTraitLangItem};
+use middle::privacy::AccessLevels;
 use middle::region::{CodeExtent, ROOT_CODE_EXTENT};
 use middle::resolve_lifetime::ObjectLifetimeDefault;
 use mir::Mir;
@@ -108,10 +108,12 @@ mod sty;
 
 /// The complete set of all analyses described in this module. This is
 /// produced by the driver and fed to trans and later passes.
+///
+/// NB: These contents are being migrated into queries using the
+/// *on-demand* infrastructure.
 #[derive(Clone)]
 pub struct CrateAnalysis {
-    pub export_map: ExportMap,
-    pub access_levels: middle::privacy::AccessLevels,
+    pub access_levels: Rc<AccessLevels>,
     pub reachable: NodeSet,
     pub name: String,
     pub glob_map: Option<hir::GlobMap>,
@@ -122,6 +124,7 @@ pub struct Resolutions {
     pub freevars: FreevarMap,
     pub trait_map: TraitMap,
     pub maybe_unused_trait_imports: NodeSet,
+    pub export_map: ExportMap,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -2059,55 +2062,7 @@ impl<'a, 'gcx, 'tcx> TyCtxt<'a, 'gcx, 'tcx> {
     }
 
     pub fn associated_item(self, def_id: DefId) -> AssociatedItem {
-        if !def_id.is_local() {
-            return queries::associated_item::get(self, DUMMY_SP, def_id);
-        }
-
-        self.maps.associated_item.memoize(def_id, || {
-            // When the user asks for a given associated item, we
-            // always go ahead and convert all the associated items in
-            // the container. Note that we are also careful only to
-            // ever register a read on the *container* of the assoc
-            // item, not the assoc item itself. This prevents changes
-            // in the details of an item (for example, the type to
-            // which an associated type is bound) from contaminating
-            // those tasks that just need to scan the names of items
-            // and so forth.
-
-            let id = self.hir.as_local_node_id(def_id).unwrap();
-            let parent_id = self.hir.get_parent(id);
-            let parent_def_id = self.hir.local_def_id(parent_id);
-            let parent_item = self.hir.expect_item(parent_id);
-            match parent_item.node {
-                hir::ItemImpl(.., ref impl_trait_ref, _, ref impl_item_refs) => {
-                    for impl_item_ref in impl_item_refs {
-                        let assoc_item =
-                            self.associated_item_from_impl_item_ref(parent_def_id,
-                                                                    impl_trait_ref.is_some(),
-                                                                    impl_item_ref);
-                        self.maps.associated_item.borrow_mut()
-                            .insert(assoc_item.def_id, assoc_item);
-                    }
-                }
-
-                hir::ItemTrait(.., ref trait_item_refs) => {
-                    for trait_item_ref in trait_item_refs {
-                        let assoc_item =
-                            self.associated_item_from_trait_item_ref(parent_def_id, trait_item_ref);
-                        self.maps.associated_item.borrow_mut()
-                            .insert(assoc_item.def_id, assoc_item);
-                    }
-                }
-
-                ref r => {
-                    panic!("unexpected container of associated items: {:?}", r)
-                }
-            }
-
-            // memoize wants us to return something, so return
-            // the one we generated for this def-id
-            *self.maps.associated_item.borrow().get(&def_id).unwrap()
-        })
+        queries::associated_item::get(self, DUMMY_SP, def_id)
     }
 
     fn associated_item_from_trait_item_ref(self,
@@ -2642,4 +2597,46 @@ impl<'a, 'gcx, 'tcx> TyCtxt<'a, 'gcx, 'tcx> {
             Some(d) => f(&d[..])
         }
     }
+}
+
+fn associated_item<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>, def_id: DefId)
+    -> AssociatedItem
+{
+    let id = tcx.hir.as_local_node_id(def_id).unwrap();
+    let parent_id = tcx.hir.get_parent(id);
+    let parent_def_id = tcx.hir.local_def_id(parent_id);
+    let parent_item = tcx.hir.expect_item(parent_id);
+    match parent_item.node {
+        hir::ItemImpl(.., ref impl_trait_ref, _, ref impl_item_refs) => {
+            if let Some(impl_item_ref) = impl_item_refs.iter().find(|i| i.id.node_id == id) {
+                let assoc_item =
+                    tcx.associated_item_from_impl_item_ref(parent_def_id,
+                                                            impl_trait_ref.is_some(),
+                                                            impl_item_ref);
+                debug_assert_eq!(assoc_item.def_id, def_id);
+                return assoc_item;
+            }
+        }
+
+        hir::ItemTrait(.., ref trait_item_refs) => {
+            if let Some(trait_item_ref) = trait_item_refs.iter().find(|i| i.id.node_id == id) {
+                let assoc_item =
+                    tcx.associated_item_from_trait_item_ref(parent_def_id, trait_item_ref);
+                debug_assert_eq!(assoc_item.def_id, def_id);
+                return assoc_item;
+            }
+        }
+
+        ref r => {
+            panic!("unexpected container of associated items: {:?}", r)
+        }
+    }
+    panic!("associated item not found for def_id: {:?}", def_id);
+}
+
+pub fn provide(providers: &mut ty::maps::Providers) {
+    *providers = ty::maps::Providers {
+        associated_item,
+        ..*providers
+    };
 }

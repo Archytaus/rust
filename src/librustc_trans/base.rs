@@ -583,7 +583,24 @@ pub fn trans_instance<'a, 'tcx>(ccx: &CrateContext<'a, 'tcx>, instance: Instance
 
     ccx.stats().n_closures.set(ccx.stats().n_closures.get() + 1);
 
-    if !ccx.sess().no_landing_pads() {
+    // The `uwtable` attribute according to LLVM is:
+    //
+    //     This attribute indicates that the ABI being targeted requires that an
+    //     unwind table entry be produced for this function even if we can show
+    //     that no exceptions passes by it. This is normally the case for the
+    //     ELF x86-64 abi, but it can be disabled for some compilation units.
+    //
+    // Typically when we're compiling with `-C panic=abort` (which implies this
+    // `no_landing_pads` check) we don't need `uwtable` because we can't
+    // generate any exceptions! On Windows, however, exceptions include other
+    // events such as illegal instructions, segfaults, etc. This means that on
+    // Windows we end up still needing the `uwtable` attribute even if the `-C
+    // panic=abort` flag is passed.
+    //
+    // You can also find more info on why Windows is whitelisted here in:
+    //      https://bugzilla.mozilla.org/show_bug.cgi?id=1302078
+    if !ccx.sess().no_landing_pads() ||
+       ccx.sess().target.target.options.is_like_windows {
         attributes::emit_uwtable(lldecl, true);
     }
 
@@ -738,7 +755,6 @@ fn write_metadata(cx: &SharedCrateContext,
 
     let cstore = &cx.tcx().sess.cstore;
     let metadata = cstore.encode_metadata(cx.tcx(),
-                                          cx.export_map(),
                                           cx.link_meta(),
                                           exported_symbols);
     if kind == MetadataKind::Uncompressed {
@@ -1039,7 +1055,7 @@ pub fn trans_crate<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>,
     // particular items that will be processed.
     let krate = tcx.hir.krate();
 
-    let ty::CrateAnalysis { export_map, reachable, name, .. } = analysis;
+    let ty::CrateAnalysis { reachable, name, .. } = analysis;
     let exported_symbols = find_exported_symbols(tcx, reachable);
 
     let check_overflow = tcx.sess.overflow_checks();
@@ -1047,7 +1063,6 @@ pub fn trans_crate<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>,
     let link_meta = link::build_link_meta(incremental_hashes_map, &name);
 
     let shared_ccx = SharedCrateContext::new(tcx,
-                                             export_map,
                                              link_meta.clone(),
                                              exported_symbols,
                                              check_overflow);

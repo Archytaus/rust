@@ -380,7 +380,7 @@ pub unsafe fn write_volatile<T>(dst: *mut T, src: T) {
 
 #[lang = "const_ptr"]
 impl<T: ?Sized> *const T {
-    /// Returns true if the pointer is null.
+    /// Returns `true` if the pointer is null.
     ///
     /// # Examples
     ///
@@ -434,7 +434,7 @@ impl<T: ?Sized> *const T {
     }
 
     /// Calculates the offset from a pointer. `count` is in units of T; e.g. a
-    /// `count` of 3 represents a pointer offset of `3 * sizeof::<T>()` bytes.
+    /// `count` of 3 represents a pointer offset of `3 * size_of::<T>()` bytes.
     ///
     /// # Safety
     ///
@@ -464,7 +464,7 @@ impl<T: ?Sized> *const T {
 
     /// Calculates the offset from a pointer using wrapping arithmetic.
     /// `count` is in units of T; e.g. a `count` of 3 represents a pointer
-    /// offset of `3 * sizeof::<T>()` bytes.
+    /// offset of `3 * size_of::<T>()` bytes.
     ///
     /// # Safety
     ///
@@ -504,7 +504,7 @@ impl<T: ?Sized> *const T {
 
 #[lang = "mut_ptr"]
 impl<T: ?Sized> *mut T {
-    /// Returns true if the pointer is null.
+    /// Returns `true` if the pointer is null.
     ///
     /// # Examples
     ///
@@ -558,7 +558,7 @@ impl<T: ?Sized> *mut T {
     }
 
     /// Calculates the offset from a pointer. `count` is in units of T; e.g. a
-    /// `count` of 3 represents a pointer offset of `3 * sizeof::<T>()` bytes.
+    /// `count` of 3 represents a pointer offset of `3 * size_of::<T>()` bytes.
     ///
     /// # Safety
     ///
@@ -587,7 +587,7 @@ impl<T: ?Sized> *mut T {
 
     /// Calculates the offset from a pointer using wrapping arithmetic.
     /// `count` is in units of T; e.g. a `count` of 3 represents a pointer
-    /// offset of `3 * sizeof::<T>()` bytes.
+    /// offset of `3 * size_of::<T>()` bytes.
     ///
     /// # Safety
     ///
